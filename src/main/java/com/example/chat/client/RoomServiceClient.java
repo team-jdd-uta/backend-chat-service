@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 
 @Component
@@ -39,6 +40,8 @@ public class RoomServiceClient {
                     .retrieve()
                     .toBodilessEntity();
             return true;
+        } catch (HttpClientErrorException.NotFound e) {
+            return false;
         } catch (Exception ex) {
             log.warn("Room Service unavailable, falling back to Redis. roomId={}", roomId, ex);
             Object value = redisTemplate.opsForHash().get(CHAT_ROOMS, roomId);

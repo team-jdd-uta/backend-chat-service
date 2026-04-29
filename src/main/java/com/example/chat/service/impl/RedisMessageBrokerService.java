@@ -16,6 +16,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -43,7 +44,7 @@ public class RedisMessageBrokerService implements MessageBrokerService {
                     return thread;
                 }
             },
-            new ThreadPoolExecutor.CallerRunsPolicy()
+            new ThreadPoolExecutor.AbortPolicy()
     );
     private final ExecutorService pubSubRetryExecutor = new ThreadPoolExecutor(
             1,
@@ -61,7 +62,7 @@ public class RedisMessageBrokerService implements MessageBrokerService {
                     return thread;
                 }
             },
-            new ThreadPoolExecutor.CallerRunsPolicy()
+            new ThreadPoolExecutor.AbortPolicy()
     );
 
     @Value("${chat.stream.key-prefix:chat:stream:room:}")
@@ -94,17 +95,25 @@ public class RedisMessageBrokerService implements MessageBrokerService {
     }
 
     private void enqueueStreamAppend(String topic, Object message) {
-        streamAppendExecutor.execute(() -> {
-            try {
-                appendToStream(topic, message);
-            } catch (Exception e) {
-                log.warn("Failed to append chat message to stream. topic={}", topic, e);
-            }
-        });
+        try {
+            streamAppendExecutor.execute(() -> {
+                try {
+                    appendToStream(topic, message);
+                } catch (Exception e) {
+                    log.warn("Failed to append chat message to stream. topic={}", topic, e);
+                }
+            });
+        } catch (RejectedExecutionException e) {
+            log.warn("Stream append queue full, dropping message. topic={}", topic);
+        }
     }
 
     private void enqueuePubSubRetry(String topic, Object message) {
-        pubSubRetryExecutor.execute(() -> retryPublish(topic, message));
+        try {
+            pubSubRetryExecutor.execute(() -> retryPublish(topic, message));
+        } catch (RejectedExecutionException e) {
+            log.warn("PubSub retry queue full, dropping retry. topic={}", topic);
+        }
     }
 
     private void retryPublish(String topic, Object message) {
