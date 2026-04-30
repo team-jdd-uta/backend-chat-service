@@ -15,6 +15,16 @@ spec:
       env:
         - name: AWS_SDK_LOAD_CONFIG
           value: "true"
+    - name: gradle
+      image: gradle:8.14.4-jdk21-alpine
+      command:
+        - cat
+      tty: true
+    - name: git
+      image: alpine/git:2.47.2
+      command:
+        - cat
+      tty: true
 """
     }
   }
@@ -42,7 +52,11 @@ spec:
     DOCKERFILE = 'Dockerfile'
     PLATFORM = 'linux/amd64'
     TEST_COMMAND = 'gradle --no-daemon test'
-    DEPLOY_TARGET = 'TODO_ARGOCD_APP_OR_MANIFEST_REPO'
+    GIT_CREDENTIALS_ID = 'github-scm'
+    GITOPS_REPO_URL = 'https://github.com/team-jdd-uta/gitops.git'
+    GITOPS_BRANCH = 'main'
+    GITOPS_APP_FILE = 'bootstrap/root/applications/backend-chat-service.yaml'
+    ARGOCD_APP_NAME = 'backend-chat-service-dev'
   }
 
   stages {
@@ -60,7 +74,11 @@ spec:
             : sh(returnStdout: true, script: 'git rev-parse --short=12 HEAD').trim()
           env.ECR_REGISTRY = "${env.AWS_ACCOUNT_ID}.dkr.ecr.${env.AWS_REGION}.amazonaws.com"
           env.IMAGE_REF = "${env.ECR_REGISTRY}/${env.IMAGE_PREFIX}${env.IMAGE_NAME}:${env.RESOLVED_IMAGE_TAG}"
+          env.LATEST_IMAGE_REF = "${env.ECR_REGISTRY}/${env.IMAGE_PREFIX}${env.IMAGE_NAME}:latest"
+          env.IS_MAIN_BUILD = ((env.BRANCH_NAME == 'main') || (env.GIT_BRANCH == 'origin/main')).toString()
           echo "Image: ${env.IMAGE_REF}"
+          echo "Latest image: ${env.LATEST_IMAGE_REF}"
+          echo "Main build: ${env.IS_MAIN_BUILD}"
         }
       }
     }
@@ -68,7 +86,9 @@ spec:
     stage('Test') {
       when { expression { return params.RUN_TESTS } }
       steps {
-        sh "${env.TEST_COMMAND}"
+        container('gradle') {
+          sh "${env.TEST_COMMAND}"
+        }
       }
     }
 
@@ -91,7 +111,7 @@ spec:
     stage('Main Image Push') {
       when {
         allOf {
-          branch 'main'
+          expression { return env.IS_MAIN_BUILD == 'true' }
           expression { return params.PUSH_IMAGE }
         }
       }
@@ -103,6 +123,7 @@ spec:
               --dockerfile "$WORKSPACE/$DOCKERFILE" \
               --custom-platform "$PLATFORM" \
               --destination "$IMAGE_REF" \
+              --destination "$LATEST_IMAGE_REF" \
               --cache=false
           '''
         }
@@ -112,13 +133,34 @@ spec:
     stage('Deploy') {
       when {
         allOf {
-          branch 'main'
+          expression { return env.IS_MAIN_BUILD == 'true' }
           expression { return params.DEPLOY }
         }
       }
       steps {
-        echo 'TODO: manifest repo image tag update 또는 ArgoCD sync를 여기에 연결하세요.'
-        echo "TODO target: ${env.DEPLOY_TARGET}"
+        container('git') {
+          withCredentials([usernamePassword(credentialsId: env.GIT_CREDENTIALS_ID, usernameVariable: 'GIT_USERNAME', passwordVariable: 'GIT_TOKEN')]) {
+            sh '''
+              set -eu
+              rm -rf gitops
+              git clone --branch "$GITOPS_BRANCH" "https://${GIT_USERNAME}:${GIT_TOKEN}@${GITOPS_REPO_URL#https://}" gitops
+              cd gitops
+              git config user.email "jenkins@team9.cloud.skala-ai.com"
+              git config user.name "team9 Jenkins"
+              tmp_file="$(mktemp)"
+              awk -v tag="$RESOLVED_IMAGE_TAG" '!updated && /^[[:space:]]+tag:/ { sub(/tag:.*/, "tag: " tag); updated = 1 } { print }' "$GITOPS_APP_FILE" > "$tmp_file"
+              mv "$tmp_file" "$GITOPS_APP_FILE"
+              if git diff --quiet -- "$GITOPS_APP_FILE"; then
+                echo "GitOps manifest already points at $RESOLVED_IMAGE_TAG"
+              else
+                git add "$GITOPS_APP_FILE"
+                git commit -m "deploy: ${ARGOCD_APP_NAME} ${RESOLVED_IMAGE_TAG}"
+                git pull --rebase origin "$GITOPS_BRANCH"
+                git push origin "HEAD:$GITOPS_BRANCH"
+              fi
+            '''
+          }
+        }
       }
     }
   }
