@@ -5,7 +5,7 @@
 ## 역할
 
 - TALK 메시지의 타입과 방 존재 여부를 검증합니다.
-- `room-service`를 우선 호출해 방 존재 여부를 확인합니다.
+- `room-service`를 우선 호출해 방 존재 여부와 오픈 상태를 확인합니다.
 - `room-service` 호출 실패 시 Redis `CHAT_ROOM` 해시를 fallback으로 확인합니다.
 - Redis Pub/Sub 채널 `chat:msg:{roomId}`로 메시지를 발행합니다.
 - Redis Stream `chat:stream:room:{roomId}`에 메시지를 비동기로 append합니다.
@@ -25,12 +25,12 @@ Socket 연결 자체는 `backend-socket-io-gateway`가 담당합니다.
 
 | Method | Path | 설명 |
 | --- | --- | --- |
-| `POST` | `/chat/message` | TALK 메시지 검증 후 Redis Pub/Sub와 Stream에 발행 |
+| `POST` | `/message` | TALK 메시지 검증 후 Redis Pub/Sub와 Stream에 발행 |
 
 요청 예:
 
 ```bash
-curl -X POST http://localhost:8083/chat/message \
+curl -X POST http://localhost:8083/message \
   -H "Content-Type: application/json" \
   -d '{
     "type": "TALK",
