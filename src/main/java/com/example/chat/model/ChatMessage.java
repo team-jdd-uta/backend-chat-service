@@ -24,4 +24,5 @@ public class ChatMessage {
     private String roomName;
     private String msgId;
     private String message;
+    private Boolean isSuperChat;
 }

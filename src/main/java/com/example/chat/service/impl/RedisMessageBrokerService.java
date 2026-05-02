@@ -151,6 +151,7 @@ public class RedisMessageBrokerService implements MessageBrokerService {
             fields.put("roomName", safe(chatMessage.getRoomName()));
             fields.put("msgId", safe(chatMessage.getMsgId()));
             fields.put("message", safe(chatMessage.getMessage()));
+            fields.put("isSuperChat", String.valueOf(Boolean.TRUE.equals(chatMessage.getIsSuperChat())));
         } else {
             fields.put("payload", String.valueOf(message));
         }
