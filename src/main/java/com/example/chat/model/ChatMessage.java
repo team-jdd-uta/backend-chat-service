@@ -19,8 +19,10 @@ public class ChatMessage {
     private MessageType type;
     private String roomId;
     private String sender;
+    private String senderUserId;
+    private String roomOwnerUserId;
+    private String roomName;
     private String msgId;
     private String message;
     private Boolean isSuperChat;
 }
-

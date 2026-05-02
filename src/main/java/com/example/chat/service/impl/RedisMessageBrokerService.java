@@ -146,6 +146,9 @@ public class RedisMessageBrokerService implements MessageBrokerService {
             fields.put("type", chatMessage.getType() == null ? "" : chatMessage.getType().name());
             fields.put("roomId", safe(chatMessage.getRoomId()));
             fields.put("sender", safe(chatMessage.getSender()));
+            fields.put("senderUserId", safe(chatMessage.getSenderUserId()));
+            fields.put("roomOwnerUserId", safe(chatMessage.getRoomOwnerUserId()));
+            fields.put("roomName", safe(chatMessage.getRoomName()));
             fields.put("msgId", safe(chatMessage.getMsgId()));
             fields.put("message", safe(chatMessage.getMessage()));
             fields.put("isSuperChat", String.valueOf(Boolean.TRUE.equals(chatMessage.getIsSuperChat())));
