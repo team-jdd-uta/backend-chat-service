@@ -22,6 +22,15 @@ public class RedisConfig {
     @Value("${spring.redis.cluster.nodes}")
     private List<String> redisNodes;
 
+    @Value("${spring.redis.mode:cluster}")
+    private String redisMode;
+
+    @Value("${spring.redis.host:localhost}")
+    private String redisHost;
+
+    @Value("${spring.redis.port:6379}")
+    private int redisPort;
+
     @Value("${chat.stream.redis.host:localhost}")
     private String streamRedisHost;
 
@@ -31,6 +40,12 @@ public class RedisConfig {
     @Bean
     @Primary
     public LettuceConnectionFactory redisConnectionFactory() {
+        if ("standalone".equalsIgnoreCase(redisMode)) {
+            RedisStandaloneConfiguration standaloneConfiguration =
+                    new RedisStandaloneConfiguration(redisHost, redisPort);
+            return new LettuceConnectionFactory(standaloneConfiguration);
+        }
+
         RedisClusterConfiguration clusterConfiguration = new RedisClusterConfiguration(redisNodes);
         clusterConfiguration.setMaxRedirects(3);
         return new LettuceConnectionFactory(clusterConfiguration);

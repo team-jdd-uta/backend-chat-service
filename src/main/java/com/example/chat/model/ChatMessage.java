@@ -21,5 +21,6 @@ public class ChatMessage {
     private String sender;
     private String msgId;
     private String message;
+    private Boolean isSuperChat;
 }
 

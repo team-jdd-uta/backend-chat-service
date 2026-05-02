@@ -44,8 +44,8 @@ public class RoomServiceClient {
             return false;
         } catch (Exception ex) {
             log.warn("Room Service unavailable, falling back to Redis. roomId={}", roomId, ex);
-            Object value = redisTemplate.opsForHash().get(CHAT_ROOMS, roomId);
-            return value != null;
+            Boolean exists = redisTemplate.opsForHash().hasKey(CHAT_ROOMS, roomId);
+            return Boolean.TRUE.equals(exists);
         }
     }
 }
