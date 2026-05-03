@@ -21,6 +21,7 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 @Slf4j
@@ -28,7 +29,7 @@ public class RedisMessageBrokerService implements MessageBrokerService {
 
     private final RedisTemplate<String, Object> redisTemplate;
     private final StringRedisTemplate streamStringRedisTemplate;
-    private final ExecutorService streamAppendExecutor = new ThreadPoolExecutor(
+    private final ThreadPoolExecutor streamAppendExecutor = new ThreadPoolExecutor(
             2,
             2,
             0L,
@@ -46,6 +47,9 @@ public class RedisMessageBrokerService implements MessageBrokerService {
             },
             new ThreadPoolExecutor.AbortPolicy()
     );
+    private final AtomicLong streamAppendSuccessCount = new AtomicLong();
+    private final AtomicLong streamAppendFailureCount = new AtomicLong();
+    private final AtomicLong streamAppendDroppedCount = new AtomicLong();
     private final ExecutorService pubSubRetryExecutor = new ThreadPoolExecutor(
             1,
             1,
@@ -99,12 +103,27 @@ public class RedisMessageBrokerService implements MessageBrokerService {
             streamAppendExecutor.execute(() -> {
                 try {
                     appendToStream(topic, message);
+                    streamAppendSuccessCount.incrementAndGet();
                 } catch (Exception e) {
-                    log.warn("Failed to append chat message to stream. topic={}", topic, e);
+                    long failures = streamAppendFailureCount.incrementAndGet();
+                    log.warn(
+                            "Failed to append chat message to stream. topic={}, failures={}, queueDepth={}",
+                            topic,
+                            failures,
+                            streamAppendExecutor.getQueue().size(),
+                            e
+                    );
                 }
             });
         } catch (RejectedExecutionException e) {
-            log.warn("Stream append queue full, dropping message. topic={}", topic);
+            long dropped = streamAppendDroppedCount.incrementAndGet();
+            log.error(
+                    "Stream append queue full, dropping message. topic={}, dropped={}, queueDepth={}, completed={}",
+                    topic,
+                    dropped,
+                    streamAppendExecutor.getQueue().size(),
+                    streamAppendExecutor.getCompletedTaskCount()
+            );
         }
     }
 
@@ -169,5 +188,20 @@ public class RedisMessageBrokerService implements MessageBrokerService {
     public void shutdownExecutor() {
         streamAppendExecutor.shutdown();
         pubSubRetryExecutor.shutdown();
+        log.info(
+                "Chat stream append executor shutdown requested. success={}, failures={}, dropped={}, remainingQueue={}",
+                streamAppendSuccessCount.get(),
+                streamAppendFailureCount.get(),
+                streamAppendDroppedCount.get(),
+                streamAppendExecutor.getQueue().size()
+        );
+        try {
+            if (!streamAppendExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
+                log.warn("Chat stream append executor did not drain within timeout. remainingQueue={}", streamAppendExecutor.getQueue().size());
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("Interrupted while waiting for chat stream append executor shutdown", e);
+        }
     }
 }

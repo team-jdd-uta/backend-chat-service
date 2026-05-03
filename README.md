@@ -93,6 +93,8 @@ docker build -t team9-chat-service:local .
 
 ## 운영 주의점
 
-- Stream append는 비동기 queue로 처리합니다. queue가 가득 차면 stream 저장이 drop될 수 있습니다.
+- Stream append는 비동기 queue로 처리합니다. queue가 가득 차면 stream 저장이 drop될 수 있으며, 이 경우 `dropped`, `queueDepth`, `completed` 값을 error log로 남깁니다.
+- Stream append Redis 호출 실패는 `failures`와 현재 `queueDepth`를 warn log로 남깁니다.
+- 종료 시 stream append 누적 `success`, `failures`, `dropped`, `remainingQueue` 값을 로그로 남기고 최대 5초 동안 queue drain을 기다립니다.
 - Pub/Sub 발행 실패 시 별도 retry queue에서 재시도합니다.
 - Pub/Sub와 Stream은 목적이 다릅니다. Pub/Sub는 실시간 전달, Stream은 MongoDB 영속화 경로입니다.
