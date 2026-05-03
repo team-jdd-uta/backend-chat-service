@@ -1,6 +1,5 @@
 package com.example.chat.config;
 
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -87,7 +86,7 @@ public class RedisConfig {
 
     @Bean(name = "streamStringRedisTemplate")
     public StringRedisTemplate streamStringRedisTemplate(
-            @Qualifier("streamRedisConnectionFactory") RedisConnectionFactory connectionFactory
+            RedisConnectionFactory connectionFactory
     ) {
         return new StringRedisTemplate(connectionFactory);
     }
