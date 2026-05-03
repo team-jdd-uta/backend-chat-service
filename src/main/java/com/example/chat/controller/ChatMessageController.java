@@ -5,9 +5,12 @@ import com.example.chat.model.ChatMessage;
 import com.example.chat.service.MessageBrokerService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -20,11 +23,23 @@ public class ChatMessageController {
     private final MessageBrokerService messageBrokerService;
     private final RoomServiceClient roomServiceClient;
 
+    @Value("${gateway.auth.required:false}")
+    private boolean gatewayAuthRequired;
+
     @PostMapping
-    public ResponseEntity<Void> receiveMessage(@RequestBody ChatMessage message) {
+    public ResponseEntity<Void> receiveMessage(@RequestBody ChatMessage message,
+                                               @RequestHeader(value = "X-User-Id", required = false) String authenticatedUserId) {
+        if (gatewayAuthRequired && isBlank(authenticatedUserId)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
         if (message == null) {
             log.warn("Invalid message payload: payload required");
             return ResponseEntity.badRequest().build();
+        }
+        if (!isBlank(authenticatedUserId) && !authenticatedUserId.equals(message.getSenderUserId())) {
+            log.warn("Authenticated user id does not match senderUserId. authenticatedUserId={}, senderUserId={}",
+                    authenticatedUserId, message.getSenderUserId());
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
 
         RoomServiceClient.RoomSnapshot roomSnapshot;
