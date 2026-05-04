@@ -1,5 +1,7 @@
 package com.example.chat.model;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -24,5 +26,7 @@ public class ChatMessage {
     private String roomName;
     private String msgId;
     private String message;
+    @JsonProperty("isSuperChat")
+    @JsonAlias({"superChat", "is_super_chat"})
     private Boolean isSuperChat;
 }

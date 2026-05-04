@@ -56,12 +56,13 @@ public class ChatMessageController {
         }
 
         log.info(
-                "Accepted chat message roomId={} sender={} senderUserId={} owner={} type={}",
+                "Accepted chat message roomId={} sender={} senderUserId={} owner={} type={} super={}",
                 message.getRoomId(),
                 message.getSender(),
                 message.getSenderUserId(),
                 message.getRoomOwnerUserId(),
-                message.getType()
+                message.getType(),
+                Boolean.TRUE.equals(message.getIsSuperChat())
         );
         messageBrokerService.publish(message.getRoomId(), message);
         return ResponseEntity.ok().build();
